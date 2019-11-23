@@ -73,14 +73,6 @@ if load ${devtype} ${devnum}:${distro_bootpart} ${a_script} uEnv.txt ; then
 fi
 setenv bootargs ${bootargs} console=${console},115200 vmalloc=400M consoleblank=0 rootwait fixrtc cpu=${imx_cpu} board=${board}
 
-if load ${devtype} ${devnum}:${distro_bootpart} ${a_fdt} ${prefix}${fdt_file} ; then
-	fdt addr ${a_fdt}
-	setenv fdt_high 0xffffffff
-else
-	echo "!!!! Error loading ${prefix}${fdt_file}";
-	exit;
-fi
-
 fdt resize 4096
 if itest.s "x" != "x${cmd_board}" ; then
 	run cmd_board
@@ -119,7 +111,9 @@ if test "sata" = "${devtype}" ; then
 elif test "usb" = "${devtype}" ; then
 	setenv bootargs "${bootargs} root=/dev/sda${bpart}" ;
 else
-	setenv bootargs "${bootargs} root=/dev/mmcblk${devnum}p${bpart}"
+	# Intentional \ here to prevent expansion, it will be
+	# expanded by 'mender-setup'
+	setenv bootargs "${bootargs} root=\${mender_kernel_root}"
 fi
 
 if itest.s "x" != "x${disable_msi}" ; then
@@ -164,7 +158,9 @@ if itest.s "x" != "x${show_env}" ; then
 	printenv
 fi
 
-if load ${devtype} ${devnum}:${distro_bootpart} ${a_zImage} ${prefix}${kernelimage} ; then
-	${bootcommand} ${a_zImage} - ${a_fdt}
-fi
-echo "Error loading kernel image"
+run mender_setup
+mmc dev ${mender_uboot_dev}
+load ${mender_uboot_root} ${a_zImage} /boot/Image
+load ${mender_uboot_root} ${a_fdt} /boot/imx8mq-nitrogen8m.dtb
+booti ${a_zImage} - ${a_fdt}
+run mender_try_to_recover
